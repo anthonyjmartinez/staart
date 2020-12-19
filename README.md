@@ -1,6 +1,6 @@
 # About
 
-`tail_chaser` is tail-like implementation in Rust for Linux systems.
+`staart` is tail-like implementation in Rust for Linux systems.
 The binary expects exactly one argument which is the file to be followed.
 Tailing of the file starts at the end of the file, and continues from there.
 If a file is rotated with a new file created with the same name the program
@@ -21,6 +21,19 @@ Consider this beta software.
 - Write documentation for the library
 - Write documentation for the binary
 - Write tests
+
+### Notes
+
+This project started life as `tail_chaser`. This particular name was not
+intentionally offensive, but very well could be taken that way. As such,
+the author has renamed the project to the Dutch word for `tail`. There
+were no changes beyond the name between `0.1.3` in the original project
+and `0.1.4` in the new, so any uses of the binary or library crates should
+be unaffected. The primary difference is that all future maintenance of
+the project will be under the new name.
+
+At the same time as the name change, the project source was moved from
+GitHub to GitLab.
 
 ### License
 

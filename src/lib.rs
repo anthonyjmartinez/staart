@@ -1,5 +1,5 @@
 /*
-    tail-chaser is a Rust implementation of a tail-like program for Linux
+    staart is a Rust implementation of a tail-like program for Linux
     Copyright (C) 2020  Anthony Martinez
 
     This program is free software: you can redistribute it and/or modify

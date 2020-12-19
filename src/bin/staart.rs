@@ -1,5 +1,5 @@
 /*
-    tail-chaser is a Rust implementation of a tail-like program for Linux
+    staart is a Rust implementation of a tail-like program for Linux
     Copyright (C) 2020  <Anthony Martinez>
 
     This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use tail_chaser::TailedFile;
+use staart::TailedFile;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
