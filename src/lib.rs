@@ -1,6 +1,6 @@
 /*
     staart is a Rust implementation of a tail-like program for Linux
-    Copyright (C) 2020  Anthony Martinez
+    Copyright (C) 2020-2021  Anthony Martinez
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,6 +16,28 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+//!
+//! `staart` is a Rust implementation of a tail-like program for Linux systems
+//!
+//! The library exposes public methods to allow other programs to follow a file
+//! internally. These methods are exposed on a struct [`TailedFile`].
+//!
+//! # Example
+//!
+//! ```rust
+//! use staart::TailedFile;
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let args: Vec<String> = std::env::args().collect();
+//!     let path = &args[1].as_str();
+//!     let mut f = TailedFile::new(path)?;
+//!     loop {
+//!        f.follow()?;
+//!        f.sleep();
+//!     }
+//! }
+//! ```
+
 use std::{thread,time};
 use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::fs::{File, Metadata};
@@ -27,6 +49,11 @@ enum FileStatus {
     Rotated
 }
 
+/// [`TailedFile`] tracks the state of a file being followed. It offers
+/// methods for updating this state, and printing data to `stdout`. The
+/// user may define the duration between updates if operating in a loop
+/// with delay.
+
 pub struct TailedFile<'a> {
     path: &'a str,
     fd: File,
@@ -37,6 +64,19 @@ pub struct TailedFile<'a> {
 }
 
 impl<'a> TailedFile<'a> {
+
+    /// Creates an instance of `std::io::Result<staart::TailedFile>`
+    /// 
+    /// # Example
+    /// `let mut f = staart::TailedFile::new("/var/log/syslog");`
+    /// 
+    /// # Defaults
+    /// - `delay`: 100ms
+    ///  
+    /// # Propagates Errors
+    /// - If the path provided does not exist, or is not readable by the current user
+    /// - If file metadata can not be read
+
     pub fn new(path: &str) -> std::io::Result<TailedFile> {
         let fd = File::open(path)?;
         let delay = 100;
@@ -86,6 +126,11 @@ impl<'a> TailedFile<'a> {
         }
     }
 
+    /// Updates the status of an instance of `staart::TailedFile`
+    /// 
+    /// File metadata are refreshed, and the position is updated if changes have occured
+    /// since the last read operation.
+
     pub fn update_status(&mut self) -> std::io::Result<()> {
         let status = self.check_updates()?;
 
@@ -98,6 +143,9 @@ impl<'a> TailedFile<'a> {
         Ok(())
     }
 
+    /// Reads new data for an instance of `staart::TailedFile` and returns
+    /// `std::io::Result<Vec<u8>>`
+
     pub fn read(&mut self) -> std::io::Result<Vec<u8>> {
         let mut reader = BufReader::new(&self.fd);
         let mut data: Vec<u8> = Vec::new();
@@ -108,19 +156,27 @@ impl<'a> TailedFile<'a> {
         Ok(data)
     }
 
+    /// Prints new data read on an instance of `staart::TailedFile` to `stdout`
+
     pub fn follow(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let data = self.read()?;
         if data.len() > 0 {
             self.update_status()?;
-            let lines = String::from_utf8(data)?; // Will blow up if not data is not utf8
+            let lines = String::from_utf8(data)?;
             print!("{}", lines);
-            Ok(())
-        } else { Ok(()) } // Only here to clear E0317, and no-op on empty data
+	}
+
+	Ok(())
     }
 
+    /// Sets a delay duration, in milliseconds, for an instance of `staart::TailedFile`.
+    /// This value is used when calling `staart::TailedFile::sleep()`.
+    
     pub fn set_delay(&mut self, d: u64) {
         self.delay = d;
     }
+
+    /// Sleeps for `staart::TailedFile.delay` milliseconds
 
     pub fn sleep(&mut self) {
         thread::sleep(time::Duration::from_millis(self.delay));
