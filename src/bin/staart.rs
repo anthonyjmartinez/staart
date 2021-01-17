@@ -1,6 +1,6 @@
 /*
     staart is a Rust implementation of a tail-like program for Linux
-    Copyright (C) 2020  <Anthony Martinez>
+    Copyright (C) 2020-2021  <Anthony Martinez>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

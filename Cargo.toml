@@ -1,6 +1,6 @@
 [package]
 name = "staart"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["Anthony Martinez <anthony@ajmartinez.com>"]
 edition = "2018"
 license = "GPL-3.0+"
