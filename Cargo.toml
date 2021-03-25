@@ -1,12 +1,12 @@
 [package]
 name = "staart"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Anthony Martinez <anthony@ajmartinez.com>"]
 edition = "2018"
-license = "GPL-3.0+"
+license = "MIT OR Apache-2.0"
 readme = "README.md"
-homepage = "https://gitlab.com/anthonyjmartinez/staart"
-repository = "https://gitlab.com/anthonyjmartinez/staart.git"
+homepage = "https://git.staart.one/ajmartinez/staart"
+repository = "https://git.staart.one/ajmartinez/staart.git"
 description = "A Rust implementation of a tail-like library and binary crate"
 keywords = ["tail"]
 categories = ["command-line-utilities"]
