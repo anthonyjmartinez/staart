@@ -37,9 +37,7 @@ use std::os::linux::fs::MetadataExt;
 use std::path::Path;
 
 /// [`TailedFile`] tracks the state of a file being followed. It offers
-/// methods for updating this state, and printing data to `stdout`. The
-/// user may define the duration between updates if operating in a loop
-/// with delay.
+/// methods for updating this state, and printing data to `stdout`.
 pub struct TailedFile<T> {
     path: T,
     pos: u64,
@@ -72,7 +70,7 @@ impl<T: AsRef<Path> + Copy> TailedFile<T> {
     }
 
     /// Reads new data for an instance of `staart::TailedFile` and returns
-    /// `Result<[u8; 4096]>`
+    /// `Result<[u8; 65536]>`
     pub fn read(&mut self, file: &File) -> Result<[u8; 65536], Box<dyn std::error::Error>> {
         let mut reader = BufReader::with_capacity(65536, file);
         let mut data: [u8; 65536] = [0u8; 65536];
@@ -112,7 +110,7 @@ impl<T: AsRef<Path> + Copy> TailedFile<T> {
         Ok(())
     }
 
-    /// Checks for file rotation by inode comparision in Linux-like systems
+    /// Checks for file truncation by length comparision to the previous read position
     fn check_truncate(&mut self, meta: &Metadata) -> Result<(), Box<dyn std::error::Error>> {
         let inode = meta.st_ino();
         let len = meta.len();

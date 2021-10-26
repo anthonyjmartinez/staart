@@ -31,8 +31,8 @@ Documentation can be found [here](https://docs.rs/staart/).
 
 ## Roadmap
 
-[ ] Support following files in Windows environments
-[ ] Customize error handling such that missing file handles do not crash the program
+- [ ] Support following files in Windows environments
+- [ ] Customize error handling such that missing file handles do not crash the program
 
 ### License
 
