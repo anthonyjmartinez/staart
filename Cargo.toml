@@ -1,8 +1,8 @@
 [package]
 name = "staart"
-version = "0.1.9"
+version = "0.2.0"
 authors = ["Anthony Martinez <anthony@ajmartinez.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 homepage = "https://git.staart.one/ajmartinez/staart"
@@ -14,6 +14,9 @@ categories = ["command-line-utilities"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 lto = true

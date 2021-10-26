@@ -7,168 +7,194 @@
 // copied, modified, or distributed except according to those terms.
 
 //!
-//! `staart` is a Rust implementation of a tail-like program for Linux systems
+//! `staart` is a Rust implementation of a tail-like program
 //!
 //! The library exposes public methods to allow other programs to follow a file
 //! internally. These methods are exposed on a struct [`TailedFile`].
 //!
 //! # Example
 //!
-//! ```rust
+//! ```no_run
+//! use std::thread::sleep;
+//! use std::time::Duration;
 //! use staart::TailedFile;
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let delay = Duration::from_millis(100);
 //!     let args: Vec<String> = std::env::args().collect();
 //!     let path = &args[1].as_str();
 //!     let mut f = TailedFile::new(path)?;
 //!     loop {
 //!        f.follow()?;
-//!        f.sleep();
+//!        sleep(delay);
 //!     }
 //! }
 //! ```
 
-use std::{thread,time};
-use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::fs::{File, Metadata};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::os::linux::fs::MetadataExt;
-
-enum FileStatus {
-    Unchanged,
-    Updated,
-    Rotated
-}
+use std::path::Path;
 
 /// [`TailedFile`] tracks the state of a file being followed. It offers
 /// methods for updating this state, and printing data to `stdout`. The
 /// user may define the duration between updates if operating in a loop
 /// with delay.
-
-pub struct TailedFile<'a> {
-    path: &'a str,
-    fd: File,
-    delay: u64,
-    meta: Metadata,
-    now: time::Instant,
-    pos: u64
+pub struct TailedFile<T> {
+    path: T,
+    pos: u64,
+    inode: u64,
 }
 
-impl<'a> TailedFile<'a> {
-
+impl<T: AsRef<Path> + Copy> TailedFile<T> {
     /// Creates an instance of `std::io::Result<staart::TailedFile>`
-    /// 
+    ///
     /// # Example
-    /// `let mut f = staart::TailedFile::new("/var/log/syslog");`
-    /// 
-    /// # Defaults
-    /// - `delay`: 100ms
-    ///  
+    /// ```no_run
+    /// let mut f = staart::TailedFile::new("/var/log/syslog");
+    /// ```
+    ///
     /// # Propagates Errors
     /// - If the path provided does not exist, or is not readable by the current user
     /// - If file metadata can not be read
+    pub fn new(path: T) -> std::io::Result<TailedFile<T>> {
+        let inode: u64;
+        let pos: u64;
 
-    pub fn new(path: &str) -> std::io::Result<TailedFile> {
-        let fd = File::open(path)?;
-        let delay = 100;
-        let meta = fd.metadata()?;
-        let now = time::Instant::now();
-        let pos = meta.len();
-
-        Ok(TailedFile {
-            path,
-            fd,
-            delay,
-            meta,
-            now,
-            pos
-        })
-    }
-
-    fn open(&self, path: &str) -> std::io::Result<File> {
-        Ok(File::open(path)?)
-    }
-
-    fn metadata(&self, fd: &File) -> std::io::Result<Metadata> {
-        Ok(fd.metadata()?)
-    }
-
-    fn check_updates(&mut self) -> std::io::Result<FileStatus> {
-        const THRESHOLD: time::Duration = time::Duration::from_secs(5);
-        let current = time::Instant::now();
-        let new_meta = self.metadata(&self.fd)?;
-        if new_meta.len() != self.meta.len() && new_meta.st_ino() == self.meta.st_ino() {
-            self.meta = new_meta;
-            self.now = current;
-            return Ok(FileStatus::Updated);
-        } else if new_meta.len() == self.meta.len() && current.duration_since(self.now) > THRESHOLD {
-            let new_fd = self.open(self.path)?;
-            let new_file_meta = self.metadata(&new_fd)?;
-            if new_file_meta.st_ino() != self.meta.st_ino() {
-                self.fd = new_fd;
-                self.meta = new_file_meta;
-                self.now = current;
-                return Ok(FileStatus::Rotated);
-            } else {
-                return Ok(FileStatus::Unchanged);
-            }
-        } else {
-            return Ok(FileStatus::Unchanged);
+        {
+            let f = File::open(path)?;
+            let meta = f.metadata()?;
+            pos = meta.len();
+            inode = meta.st_ino();
         }
+
+        Ok(TailedFile { path, pos, inode })
     }
 
-    /// Updates the status of an instance of `staart::TailedFile`
-    /// 
-    /// File metadata are refreshed, and the position is updated if changes have occured
-    /// since the last read operation.
+    /// Reads new data for an instance of `staart::TailedFile` and returns
+    /// `Result<[u8; 4096]>`
+    pub fn read(&mut self, file: &File) -> Result<[u8; 65536], Box<dyn std::error::Error>> {
+        let mut reader = BufReader::with_capacity(65536, file);
+        let mut data: [u8; 65536] = [0u8; 65536];
 
-    pub fn update_status(&mut self) -> std::io::Result<()> {
-        let status = self.check_updates()?;
+        reader.seek(SeekFrom::Start(self.pos))?;
+        let n: u64 = reader.read(&mut data)?.try_into()?;
 
-        match status {
-            FileStatus::Unchanged => {},
-            FileStatus::Updated => { self.pos = self.meta.len() },
-            FileStatus::Rotated => { self.pos = 0 },
+        self.pos += n;
+        Ok(data)
+    }
+
+    /// Prints new data read on an instance of `staart::TailedFile` to `stdout`
+    pub fn follow(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let fd = File::open(self.path)?;
+        let meta = fd.metadata()?;
+        self.check_rotate(&meta)?;
+        self.check_truncate(&meta)?;
+        let data = self.read(&fd)?;
+
+        if let Ok(printable) = std::str::from_utf8(&data) {
+            print!("{}", printable)
+        } else {
+            println!("Encountered non-UTF8 bytes.")
         }
 
         Ok(())
     }
 
-    /// Reads new data for an instance of `staart::TailedFile` and returns
-    /// `std::io::Result<Vec<u8>>`
+    /// Checks for file rotation by inode comparision in Linux-like systems
+    fn check_rotate(&mut self, meta: &Metadata) -> Result<(), Box<dyn std::error::Error>> {
+        let inode = meta.st_ino();
+        if inode != self.inode {
+            self.pos = 0;
+            self.inode = inode;
+        }
 
-    pub fn read(&mut self) -> std::io::Result<Vec<u8>> {
-        let mut reader = BufReader::new(&self.fd);
-        let mut data: Vec<u8> = Vec::new();
-
-        reader.seek(SeekFrom::Start(self.pos))?;
-        reader.read_to_end(&mut data)?;
-
-        Ok(data)
+        Ok(())
     }
 
-    /// Prints new data read on an instance of `staart::TailedFile` to `stdout`
+    /// Checks for file rotation by inode comparision in Linux-like systems
+    fn check_truncate(&mut self, meta: &Metadata) -> Result<(), Box<dyn std::error::Error>> {
+        let inode = meta.st_ino();
+        let len = meta.len();
+        if inode == self.inode && len < self.pos {
+            self.pos = 0;
+        }
 
-    pub fn follow(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let data = self.read()?;
-        if data.len() > 0 {
-            self.update_status()?;
-            let lines = String::from_utf8(data)?;
-            print!("{}", lines);
-	}
+        Ok(())
+    }
+}
 
-	Ok(())
+#[cfg(test)]
+mod tests {
+    use std::{io::Write, os::linux::fs::MetadataExt};
+
+    use super::*;
+
+    #[test]
+    fn tailed_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = &dir.path().join("test.file");
+        let _f = File::create(&path).unwrap();
+        let tailed_file = TailedFile::new(&path);
+        assert!(tailed_file.is_ok())
     }
 
-    /// Sets a delay duration, in milliseconds, for an instance of `staart::TailedFile`.
-    /// This value is used when calling `staart::TailedFile::sleep()`.
-    
-    pub fn set_delay(&mut self, d: u64) {
-        self.delay = d;
+    #[test]
+    fn test_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = &dir.path().join("test.file");
+        let test_data = b"Some data";
+
+        let mut f = File::create(&path).unwrap();
+        let mut tailed_file = TailedFile::new(&path).unwrap();
+
+        f.write_all(test_data).unwrap();
+
+        let f = File::open(&path).unwrap();
+
+        let data = tailed_file.read(&f).unwrap();
+        assert_eq!(&data[..9], test_data);
+        assert_eq!(tailed_file.pos, 9);
     }
 
-    /// Sleeps for `staart::TailedFile.delay` milliseconds
+    #[test]
+    fn test_check_rotate() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = &dir.path().join("test.file");
+        let path2 = &dir.path().join("test2.file");
+        let test_data = b"Some data";
+        let more_test_data = b"fun";
 
-    pub fn sleep(&mut self) {
-        thread::sleep(time::Duration::from_millis(self.delay));
+        let mut f = File::create(&path).unwrap();
+        f.write_all(test_data).unwrap();
+
+        let mut tailed_file = TailedFile::new(&path).unwrap();
+
+        std::fs::rename(&path, &path2).unwrap();
+
+        let mut f = File::create(&path).unwrap();
+        f.write_all(more_test_data).unwrap();
+
+        assert!(tailed_file.check_rotate(&f.metadata().unwrap()).is_ok());
+        assert_eq!(tailed_file.inode, f.metadata().unwrap().st_ino())
+    }
+
+    #[test]
+    fn test_check_truncate() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = &dir.path().join("test.file");
+        let test_data = b"Some data";
+        let more_test_data = b"fun";
+
+        let mut f = File::create(&path).unwrap();
+        f.write_all(test_data).unwrap();
+
+        let mut tailed_file = TailedFile::new(&path).unwrap();
+
+        let mut f = File::create(&path).unwrap();
+        f.write_all(more_test_data).unwrap();
+
+        assert!(tailed_file.check_truncate(&f.metadata().unwrap()).is_ok());
+        assert_eq!(tailed_file.pos, 0)
     }
 }

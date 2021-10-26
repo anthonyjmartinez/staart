@@ -1,23 +1,24 @@
 # About
 
-`staart` is tail-like implementation in Rust for Linux systems.
+`staart` is tail-like implementation in Rust.
 The binary expects exactly one argument which is the file to be followed.
 Tailing of the file starts at the end of the file, and continues from there.
 If a file is rotated with a new file created with the same name the program
-will continue following the named file, and not the previous version. The
-program will crash if non-utf8 code points are encountered during tailing.
+will continue following the named file, and not the previous version. In the
+case of truncation, data are printed from the start of the file.
 
 ## Binary
 
 `staart` offers a Rust std-lib only binary crate capable of following a
-file consiting of utf-8 code points. If the file is rotated, the new file
-will be followed. Usage is simple:
+file. If the file is rotated, the new file will be followed. Following will
+start at the beginning should truncation be detected. Usage is simple:
 
 `staart <path/to/file.ext>`
 
 The full feature set of `tail` is not replicated here. `staart` will always
 start from the end of the file, and print all subsequently appearing lines
-to `stdout`.
+to `stdout`. If non-utf8 code points are found they are not ignored, and may
+mangle your terminal.
 
 ## Library
 
@@ -26,6 +27,12 @@ struct it creates should there be a need to follow a file from directly
 within a more complicated application.
 
 Documentation can be found [here](https://docs.rs/staart/).
+
+
+## Roadmap
+
+[ ] Support following files in Windows environments
+[ ] Customize error handling such that missing file handles do not crash the program
 
 ### License
 
