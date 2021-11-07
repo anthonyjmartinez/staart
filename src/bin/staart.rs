@@ -10,15 +10,39 @@ use std::path::Path;
 use std::thread::sleep;
 use std::time::Duration;
 
-use staart::TailedFile;
+use staart::{StaartError, TailedFile};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+type Result<T> = std::result::Result<T, StaartError>;
+
+fn main() -> Result<()> {
     const DEFAULT_DELAY: Duration = Duration::from_millis(100);
+    const OPEN_ERR_LIMIT: u8 = 3;
+
     let args: Vec<String> = std::env::args().collect();
     let path = Path::new(&args[1]);
     let mut f = TailedFile::new(path)?;
+    let mut open_errors: u8 = 0;
+
     loop {
-        f.follow()?;
+	if let Err(e) = f.follow() {
+	    match e {
+		StaartError::IO(err) if err.kind() == std::io::ErrorKind::NotFound => {
+		    if open_errors >= OPEN_ERR_LIMIT {
+			eprintln!("Failed to open: {}, more than {} times. Exiting!", path.display(), open_errors);
+			std::process::exit(1);
+		    } else {
+			open_errors += 1;
+		    }
+		},
+		StaartError::Utf8(_) => {
+		    eprintln!("encountered non-utf8 bytes on read")
+		},
+		_ => {
+		    return Err(e)
+		}
+	    }
+	}
+
         sleep(DEFAULT_DELAY);
     }
 }

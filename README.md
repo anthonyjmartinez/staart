@@ -17,8 +17,10 @@ start at the beginning should truncation be detected. Usage is simple:
 
 The full feature set of `tail` is not replicated here. `staart` will always
 start from the end of the file, and print all subsequently appearing lines
-to `stdout`. If non-utf8 code points are found they are not ignored, and may
-mangle your terminal.
+to `stdout`. If non-utf8 code points are found an error is printed to `stderr`.
+
+If the path given to `staart` does not exist for three open attempts, the
+application exits with status code 1.
 
 ## Library
 
@@ -32,7 +34,7 @@ Documentation can be found [here](https://docs.rs/staart/).
 ## Roadmap
 
 - [ ] Support following files in Windows environments
-- [ ] Customize error handling such that missing file handles do not crash the program
+- [x] Customize error handling such that missing file handles do not crash the program
 
 ### License
 

@@ -1,6 +1,6 @@
 [package]
 name = "staart"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Anthony Martinez <anthony@ajmartinez.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
