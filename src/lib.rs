@@ -49,7 +49,10 @@ pub struct TailedFile<T> {
     inode: u64,
 }
 
-impl<T: AsRef<Path> + Copy> TailedFile<T> {
+impl<T> TailedFile<T>
+where
+    T: AsRef<Path> + Copy,
+{
     /// Creates an instance of `std::io::Result<staart::TailedFile>`
     ///
     /// # Example
@@ -96,7 +99,7 @@ impl<T: AsRef<Path> + Copy> TailedFile<T> {
         let data = self.read(&fd)?;
 
         let printable = std::str::from_utf8(&data)?;
-	print!("{}", printable);
+        print!("{}", printable);
 
         Ok(())
     }
@@ -108,7 +111,6 @@ impl<T: AsRef<Path> + Copy> TailedFile<T> {
             self.pos = 0;
             self.inode = inode;
         }
-
     }
 
     /// Checks for file truncation by length comparision to the previous read position
