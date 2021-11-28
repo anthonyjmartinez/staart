@@ -30,11 +30,11 @@ within a more complicated application.
 
 Documentation can be found [here](https://docs.rs/staart/).
 
+### Windows Support
 
-## Roadmap
-
-- [ ] Support following files in Windows environments
-- [x] Customize error handling such that missing file handles do not crash the program
+`staart` will at least *run* in a Windows environment as of v0.4.0, but the
+behavior is not identical to the Linux environment for reasons unknown to
+the developer. Contributions are welcome if someone wishes to fix this.
 
 ### License
 

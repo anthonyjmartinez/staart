@@ -32,7 +32,6 @@
 
 use std::fs::{File, Metadata};
 use std::io::{BufReader, Read, Seek, SeekFrom};
-use std::os::linux::fs::MetadataExt;
 use std::path::Path;
 
 mod errors;
@@ -46,7 +45,7 @@ type Result<T> = std::result::Result<T, StaartError>;
 pub struct TailedFile<T> {
     path: T,
     pos: u64,
-    inode: u64,
+    meta: Metadata,
 }
 
 impl<T> TailedFile<T>
@@ -64,68 +63,103 @@ where
     /// - If the path provided does not exist, or is not readable by the current user
     /// - If file metadata can not be read
     pub fn new(path: T) -> Result<TailedFile<T>> {
-        let inode: u64;
-        let pos: u64;
+        let f = File::open(path)?;
+        let meta = f.metadata()?;
+        let pos = meta.len();
 
-        {
-            let f = File::open(path)?;
-            let meta = f.metadata()?;
-            pos = meta.len();
-            inode = meta.st_ino();
-        }
-
-        Ok(TailedFile { path, pos, inode })
+        Ok(TailedFile { path, pos, meta })
     }
 
     /// Reads new data for an instance of `staart::TailedFile` and returns
-    /// `Result<[u8; 65536]>`
-    pub fn read(&mut self, file: &File) -> Result<[u8; 65536]> {
+    /// `Result<Vec<u8>>`
+    pub fn read(&mut self, file: &File) -> Result<Vec<u8>> {
         let mut reader = BufReader::with_capacity(65536, file);
         let mut data: [u8; 65536] = [0u8; 65536];
-
         reader.seek(SeekFrom::Start(self.pos))?;
         let n: u64 = reader.read(&mut data)?.try_into()?;
 
         self.pos += n;
+
+        let data: Vec<u8> = data.into_iter().take(n.try_into()?).collect();
+
         Ok(data)
     }
 
     /// Prints new data read on an instance of `staart::TailedFile` to `stdout`
     pub fn follow(&mut self) -> Result<()> {
         let fd = File::open(self.path)?;
-        let meta = fd.metadata()?;
-        self.check_rotate(&meta);
-        self.check_truncate(&meta);
+        self.check_rotate(&fd)?;
+        self.check_truncate(&fd)?;
         let data = self.read(&fd)?;
 
-        let printable = std::str::from_utf8(&data)?;
-        print!("{}", printable);
+        if let Ok(s) = String::from_utf8(data) {
+            print!("{}", s)
+        }
 
         Ok(())
     }
 
     /// Checks for file rotation by inode comparision in Linux-like systems
-    fn check_rotate(&mut self, meta: &Metadata) {
+    #[cfg(target_os = "linux")]
+    fn check_rotate(&mut self, fd: &File) -> Result<()> {
+        use std::os::linux::fs::MetadataExt;
+        let meta = fd.metadata()?;
         let inode = meta.st_ino();
-        if inode != self.inode {
+        if inode != self.meta.st_ino() {
             self.pos = 0;
-            self.inode = inode;
+            self.meta = meta;
         }
+
+        Ok(())
+    }
+
+    /// Checks for file rotation by creation time comparision in Windows systems
+    #[cfg(target_os = "windows")]
+    fn check_rotate(&mut self, fd: &File) -> Result<()> {
+        use std::os::windows::fs::MetadataExt;
+
+        let meta = fd.metadata()?;
+        let created_at = meta.creation_time();
+        if created_at != self.meta.creation_time() {
+            self.pos = 0;
+            self.meta = meta;
+        }
+
+        Ok(())
     }
 
     /// Checks for file truncation by length comparision to the previous read position
-    fn check_truncate(&mut self, meta: &Metadata) {
+    #[cfg(target_os = "linux")]
+    fn check_truncate(&mut self, fd: &File) -> Result<()> {
+        use std::os::linux::fs::MetadataExt;
+        let meta = fd.metadata()?;
         let inode = meta.st_ino();
         let len = meta.len();
-        if inode == self.inode && len < self.pos {
+        if inode == self.meta.st_ino() && len < self.pos {
             self.pos = 0;
         }
+
+        Ok(())
+    }
+
+    /// Checks for file truncation by length comparision to the previous read position
+    #[cfg(target_os = "windows")]
+    fn check_truncate(&mut self, fd: &File) -> Result<()> {
+        use std::os::windows::fs::MetadataExt;
+        let meta = fd.metadata()?;
+        let created_at = meta.creation_time();
+        let len = meta.len();
+        if created_at == self.meta.creation_time() && len < self.pos {
+            self.pos = 0;
+        }
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{io::Write, os::linux::fs::MetadataExt};
+    use std::io::Write;
 
     use super::*;
 
@@ -152,7 +186,7 @@ mod tests {
         let f = File::open(&path).unwrap();
 
         let data = tailed_file.read(&f).unwrap();
-        assert_eq!(&data[..9], test_data);
+        assert_eq!(data.len(), test_data.len());
         assert_eq!(tailed_file.pos, 9);
     }
 
@@ -174,8 +208,22 @@ mod tests {
         let mut f = File::create(&path).unwrap();
         f.write_all(more_test_data).unwrap();
 
-        tailed_file.check_rotate(&f.metadata().unwrap());
-        assert_eq!(tailed_file.inode, f.metadata().unwrap().st_ino())
+        tailed_file.check_rotate(&f).unwrap();
+
+        #[cfg(target_os = "linux")]
+        {
+            use std::os::linux::fs::MetadataExt;
+            assert_eq!(tailed_file.meta.st_ino(), f.metadata().unwrap().st_ino())
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::fs::MetadataExt;
+            assert_eq!(
+                tailed_file.meta.creation_time(),
+                f.metadata().unwrap().creation_time()
+            )
+        }
     }
 
     #[test]
@@ -193,7 +241,7 @@ mod tests {
         let mut f = File::create(&path).unwrap();
         f.write_all(more_test_data).unwrap();
 
-        tailed_file.check_truncate(&f.metadata().unwrap());
+        tailed_file.check_truncate(&f).unwrap();
         assert_eq!(tailed_file.pos, 0)
     }
 }
