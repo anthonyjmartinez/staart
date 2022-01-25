@@ -36,6 +36,11 @@ Documentation can be found [here](https://docs.rs/staart/).
 behavior is not identical to the Linux environment for reasons unknown to
 the developer. Contributions are welcome if someone wishes to fix this.
 
+### MSRV
+
+This crate makes use of format strings stabilized in Rust 1.58, as such this
+is the Minimum Supported Rust Version.
+
 ### License
 
 Licensed under either of

@@ -93,7 +93,7 @@ where
         let data = self.read(&fd)?;
 
         if let Ok(s) = String::from_utf8(data) {
-            print!("{}", s)
+            print!("{s}")
         }
 
         Ok(())

@@ -28,11 +28,9 @@ fn main() -> Result<()> {
             match e {
                 StaartError::IO(err) if err.kind() == std::io::ErrorKind::NotFound => {
                     if open_errors >= OPEN_ERR_LIMIT {
+			let path_str = path.display();
                         eprintln!(
-                            "Failed to open: {}, more than {} times. Exiting!",
-                            path.display(),
-                            open_errors
-                        );
+                            "Failed to open: {path_str}, more than {open_errors} times. Exiting!");
                         std::process::exit(1);
                     } else {
                         open_errors += 1;
