@@ -16,7 +16,7 @@ start at the beginning should truncation be detected. Usage is simple:
 `staart <path/to/file.ext>`
 
 The full feature set of `tail` is not replicated here. `staart` will always
-start from the end of the file, and print all subsequently appearing lines
+start from the end of the file, and print all subsequently appearing data
 to `stdout`. If non-utf8 code points are found an error is printed to `stderr`.
 
 If the path given to `staart` does not exist for three open attempts, the

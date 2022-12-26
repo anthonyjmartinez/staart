@@ -24,7 +24,7 @@
 //!     let path = &args[1].as_str();
 //!     let mut f = TailedFile::new(path)?;
 //!     loop {
-//!        f.follow()?;
+//!        f.read_and(|d| print!("{}", std::str::from_utf8(d).unwrap()))?;
 //!        sleep(delay);
 //!     }
 //! }
@@ -72,7 +72,7 @@ where
 
     /// Reads new data for an instance of `staart::TailedFile` and returns
     /// `Result<Vec<u8>>`
-    pub fn read(&mut self, file: &File) -> Result<Vec<u8>> {
+    fn read(&mut self, file: &File) -> Result<Vec<u8>> {
         let mut reader = BufReader::with_capacity(65536, file);
         let mut data: [u8; 65536] = [0u8; 65536];
         reader.seek(SeekFrom::Start(self.pos))?;
@@ -85,18 +85,16 @@ where
         Ok(data)
     }
 
-    /// Prints new data read on an instance of `staart::TailedFile` to `stdout`
-    pub fn follow(&mut self) -> Result<()> {
-        let fd = File::open(self.path)?;
-        self.check_rotate(&fd)?;
-        self.check_truncate(&fd)?;
-        let data = self.read(&fd)?;
+    /// Passes `&Vec<u8>` read from the tailed file to a user-defined function returning the unit type ()`.
+    pub fn read_and<F: Fn(&[u8])>(&mut self, f: F) -> Result<()> {
+	let fd = File::open(self.path)?;
+	self.check_rotate(&fd)?;
+	self.check_truncate(&fd)?;
+	let data = self.read(&fd)?;
 
-        if let Ok(s) = String::from_utf8(data) {
-            print!("{s}")
-        }
-
-        Ok(())
+	f(&data);
+	
+	Ok(())
     }
 
     /// Checks for file rotation by inode comparision in Linux-like systems
@@ -167,7 +165,7 @@ mod tests {
     fn tailed_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = &dir.path().join("test.file");
-        let _f = File::create(&path).unwrap();
+        let _f = File::create(path).unwrap();
         let tailed_file = TailedFile::new(&path);
         assert!(tailed_file.is_ok())
     }
@@ -178,12 +176,12 @@ mod tests {
         let path = &dir.path().join("test.file");
         let test_data = b"Some data";
 
-        let mut f = File::create(&path).unwrap();
+        let mut f = File::create(path).unwrap();
         let mut tailed_file = TailedFile::new(&path).unwrap();
 
         f.write_all(test_data).unwrap();
 
-        let f = File::open(&path).unwrap();
+        let f = File::open(path).unwrap();
 
         let data = tailed_file.read(&f).unwrap();
         assert_eq!(data.len(), test_data.len());
@@ -198,14 +196,14 @@ mod tests {
         let test_data = b"Some data";
         let more_test_data = b"fun";
 
-        let mut f = File::create(&path).unwrap();
+        let mut f = File::create(path).unwrap();
         f.write_all(test_data).unwrap();
 
         let mut tailed_file = TailedFile::new(&path).unwrap();
 
-        std::fs::rename(&path, &path2).unwrap();
+        std::fs::rename(path, path2).unwrap();
 
-        let mut f = File::create(&path).unwrap();
+        let mut f = File::create(path).unwrap();
         f.write_all(more_test_data).unwrap();
 
         tailed_file.check_rotate(&f).unwrap();
@@ -233,12 +231,12 @@ mod tests {
         let test_data = b"Some data";
         let more_test_data = b"fun";
 
-        let mut f = File::create(&path).unwrap();
+        let mut f = File::create(path).unwrap();
         f.write_all(test_data).unwrap();
 
         let mut tailed_file = TailedFile::new(&path).unwrap();
 
-        let mut f = File::create(&path).unwrap();
+        let mut f = File::create(path).unwrap();
         f.write_all(more_test_data).unwrap();
 
         tailed_file.check_truncate(&f).unwrap();

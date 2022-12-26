@@ -24,7 +24,11 @@ fn main() -> Result<()> {
     let mut open_errors: u8 = 0;
 
     loop {
-        if let Err(e) = f.follow() {
+        if let Err(e) = f.read_and(|d| {
+	    if let Ok(s) = std::str::from_utf8(d) {
+		print!("{s}")
+	    }
+	}) {
             match e {
                 StaartError::IO(err) if err.kind() == std::io::ErrorKind::NotFound => {
                     if open_errors >= OPEN_ERR_LIMIT {
