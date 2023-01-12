@@ -72,8 +72,13 @@ where
 
     /// Reads new data for an instance of `staart::TailedFile` and returns
     /// `Result<Vec<u8>>`
-    fn read(&mut self, file: &File) -> Result<Vec<u8>> {
-        let mut reader = BufReader::with_capacity(65536, file);
+    ///
+    /// Prior to reading the file, it is checked for rotation and/or truncation.
+    pub fn read(&mut self) -> Result<Vec<u8>> {
+	let fd = File::open(self.path)?;
+	self.check_rotate(&fd)?;
+	self.check_truncate(&fd)?;
+        let mut reader = BufReader::with_capacity(65536, &fd);
         let mut data: [u8; 65536] = [0u8; 65536];
         reader.seek(SeekFrom::Start(self.pos))?;
         let n: u64 = reader.read(&mut data)?.try_into()?;
@@ -87,10 +92,7 @@ where
 
     /// Passes `&Vec<u8>` read from the tailed file to a user-defined function returning the unit type ()`.
     pub fn read_and<F: Fn(&[u8])>(&mut self, f: F) -> Result<()> {
-	let fd = File::open(self.path)?;
-	self.check_rotate(&fd)?;
-	self.check_truncate(&fd)?;
-	let data = self.read(&fd)?;
+	let data = self.read()?;
 
 	f(&data);
 	
@@ -181,9 +183,7 @@ mod tests {
 
         f.write_all(test_data).unwrap();
 
-        let f = File::open(path).unwrap();
-
-        let data = tailed_file.read(&f).unwrap();
+        let data = tailed_file.read().unwrap();
         assert_eq!(data.len(), test_data.len());
         assert_eq!(tailed_file.pos, 9);
     }
