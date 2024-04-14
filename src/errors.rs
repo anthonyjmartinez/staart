@@ -1,5 +1,5 @@
 // staart is a Rust implementation of a tail-like program for Linux
-// Copyright 2020-2021 Anthony Martinez
+// Copyright 2020-2024 Anthony Martinez
 //
 // Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
