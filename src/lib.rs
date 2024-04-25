@@ -243,6 +243,12 @@ mod tests {
             assert_eq!(tailed_file.meta.st_ino(), f.metadata().unwrap().st_ino())
         }
 
+	#[cfg(target_os = "macos")]
+        {
+            use std::os::unix::fs::MetadataExt;
+            assert_eq!(tailed_file.meta.ino(), f.metadata().unwrap().ino())
+        }
+
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::fs::MetadataExt;
