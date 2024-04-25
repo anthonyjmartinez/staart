@@ -128,6 +128,21 @@ where
         Ok(())
     }
 
+
+    /// Checks for file rotation by inode comparision in MacOS systems
+    #[cfg(target_os = "macos")]
+    fn check_rotate(&mut self, fd: &File) -> Result<()> {
+        use std::os::unix::fs::MetadataExt;
+        let meta = fd.metadata()?;
+        let inode = meta.ino();
+        if inode != self.meta.ino() {
+            self.pos = 0;
+            self.meta = meta;
+        }
+
+        Ok(())
+    }
+
     /// Checks for file truncation by length comparision to the previous read position
     #[cfg(target_os = "linux")]
     fn check_truncate(&mut self, fd: &File) -> Result<()> {
@@ -150,6 +165,20 @@ where
         let created_at = meta.creation_time();
         let len = meta.len();
         if created_at == self.meta.creation_time() && len < self.pos {
+            self.pos = 0;
+        }
+
+        Ok(())
+    }
+
+    /// Checks for file truncation by length comparision to the previous read position
+    #[cfg(target_os = "macos")]
+    fn check_truncate(&mut self, fd: &File) -> Result<()> {
+        use std::os::unix::fs::MetadataExt;
+        let meta = fd.metadata()?;
+        let inode = meta.ino();
+        let len = meta.len();
+        if inode == self.meta.ino() && len < self.pos {
             self.pos = 0;
         }
 
