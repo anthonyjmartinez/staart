@@ -36,6 +36,10 @@ Documentation can be found [here](https://docs.rs/staart/).
 behavior is not identical to the Linux environment for reasons unknown to
 the developer. Contributions are welcome if someone wishes to fix this.
 
+### MacOS Support
+
+`staart` will at least *run* in a MacOS environment as of v0.7.2.
+
 ### MSRV
 
 This crate makes use of format strings stabilized in Rust 1.58, as such this
